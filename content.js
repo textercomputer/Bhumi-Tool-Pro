@@ -461,6 +461,68 @@ const grnAutomation = {
         }
     },
 
+    async checkStatus(grn, ror) {
+        try {
+            this.fillForm(grn, ror);
+            const submitButton = document.getElementById("btnSubmitGRNNo");
+            if (!submitButton) {
+                return { success: false, error: 'Submit button not found' };
+            }
+
+            submitButton.click();
+            const popup = await loginAutomation.waitForElement("popup_message", 6000);
+            const message = popup?.textContent.trim() || '';
+            const okButton = document.getElementById("popup_ok");
+            const valid = /If details shown are correct|Signed Copy Not Yet Generated/i.test(message);
+            if (okButton) okButton.click();
+            return { success: true, valid };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
+    async downloadRor(grn, ror) {
+        try {
+            this.fillForm(grn, ror);
+            const submitButton = document.getElementById("btnSubmitGRNNo");
+            if (!submitButton) {
+                return { success: false, error: 'Submit button not found' };
+            }
+
+            submitButton.click();
+            const popup = await loginAutomation.waitForElement("popup_message", 6000);
+            const message = popup?.textContent.trim() || '';
+            if (/No Record Found|Invalid|not found/i.test(message)) {
+                const okButton = document.getElementById("popup_ok");
+                if (okButton) okButton.click();
+                return { success: false, error: 'Invalid GRN or ROR' };
+            }
+
+            const okButton1 = document.getElementById("popup_ok");
+            if (okButton1) okButton1.click();
+            await loginAutomation.waitForElement("btnContinue", 6000);
+            const continueButton = document.getElementById("btnContinue");
+            if (continueButton) {
+                continueButton.click();
+                await this.waitForLoading();
+                const okButton2 = document.getElementById("popup_ok");
+                if (okButton2) okButton2.click();
+            }
+
+            await loginAutomation.waitForElement("btnPDF", 6000);
+            const downloadButton = document.getElementById("btnPDF");
+            if (!downloadButton) {
+                return { success: false, error: 'Download button not found' };
+            }
+
+            downloadButton.click();
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            return { success: true, filename: `ROR-${grn}-${ror}.pdf` };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
     async submitAndProcess() {
         const submitButton = document.getElementById("btnSubmitGRNNo");
         if (submitButton) {
@@ -626,16 +688,20 @@ function toggleFeature(settingId, isChecked) {
 }
 
 
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener(async (message, sender) => {
     if (message.settingId) {
         toggleFeature(message.settingId, message.isChecked);
     } else if (message.action === "startAutomation") {
         if (message.grnData?.length) {
             grnAutomation.performAutomation(message.grnData);
         }
+    } else if (message.action === "checkGrnStatus") {
+        return grnAutomation.checkStatus(message.grn, message.ror);
+    } else if (message.action === "downloadRor") {
+        return grnAutomation.downloadRor(message.grn, message.ror);
     } else if (message.action === "printKhatian" || message.action === "printPlot") {
         const id = message.action === "printKhatian" ? "khdetails" : "plotdetails";
-        sendResponse({ htmlContent: generatePrintHTML(id) });
+        return { htmlContent: generatePrintHTML(id) };
     } else if (message.action === "injectContent") {
         const parsed = new DOMParser().parseFromString(message.html, "text/html");
         document.replaceChild(parsed.documentElement, document.documentElement);

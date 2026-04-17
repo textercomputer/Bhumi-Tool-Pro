@@ -443,6 +443,59 @@ body {
   box-shadow: 0 4px 8px rgba(2, 118, 249, 0.3);
 }
 
+.grn-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.grn-download-btn {
+  width: 100%;
+  padding: 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.grn-download-btn:hover {
+  background: #0f766e;
+  transform: translateY(-2px);
+}
+
+.status-log {
+  background: rgba(2, 118, 249, 0.12);
+  border: 1px solid rgba(2, 118, 249, 0.25);
+  border-radius: 8px;
+  padding: 10px;
+  color: #0f172a;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+.grn-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#entry-count {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
 .grn-table-container {
   overflow-x: auto;
 }

@@ -358,8 +358,8 @@
 
     <div class="tab" id="grn">
       <div class="grn-container">
-        <h2><i class="fas fa-search"></i> GRN Management</h2>
-        
+        <h2><i class="fas fa-search"></i> GRN Options</h2>
+
         <div class="grn-form-container">
           <form id="grn-form" class="grn-form">
             <div class="input-row">
@@ -373,30 +373,51 @@
               </div>
             </div>
             <button type="submit" class="grn-add-btn">
-              <i class="fas fa-plus-circle"></i> Add GRN Details
+              <i class="fas fa-plus-circle"></i> Add Entry
             </button>
           </form>
-          
-          <button id="start-automation" class="grn-check-btn">
-            <i class="fas fa-play-circle"></i> Check All GRN Status
+
+          <div class="grn-actions">
+            <button id="check-all-btn" class="grn-check-btn">
+              <i class="fas fa-search"></i> Check All Status
+            </button>
+            <button id="download-all-btn" class="grn-download-btn">
+              <i class="fas fa-download"></i> Download All ROR
+            </button>
+          </div>
+
+          <div id="status-log" class="status-log" style="display:none;">
+            <p id="status-text"></p>
+          </div>
+        </div>
+
+        <div class="grn-table-header">
+          <span id="entry-count">0 entries</span>
+          <button id="clear-all" class="btn btn-danger-outline btn-sm">
+            <i class="fas fa-trash-alt"></i> Clear All
           </button>
         </div>
-        
+
         <div class="grn-table-container">
           <table id="grn-table">
             <thead>
               <tr>
-                <th>SL No</th>
+                <th>SL</th>
                 <th>GRN Number</th>
                 <th>ROR/PI Number</th>
                 <th>Status</th>
+                <th>Download</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr class="no-data">
-                <td colspan="5">
-                  <i class="fas fa-database"></i> No GRN data available
+                <td colspan="6">
+                  <div class="empty-state">
+                    <i class="fas fa-database"></i>
+                    <p>No GRN entries yet</p>
+                    <span>Add your first entry above</span>
+                  </div>
                 </td>
               </tr>
             </tbody>

@@ -74,6 +74,21 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     return true;
   } 
+  else if (message.action === "checkGrnStatus" || message.action === "downloadRor") {
+    browser.tabs.query({ active: true, currentWindow: true })
+      .then(tabs => {
+        if (tabs[0]) {
+          return browser.tabs.sendMessage(tabs[0].id, message);
+        }
+        throw new Error("No active tab");
+      })
+      .then(response => safeSendResponse(response || { success: false, error: 'No response from page' }))
+      .catch(error => {
+        console.error(`Error in ${message.action}:`, error);
+        safeSendResponse({ success: false, error: error.message });
+      });
+    return true;
+  } 
   else if (message.action === "saveGrnRor") {
     browser.storage.local.set({
       savedGrn: message.grn,

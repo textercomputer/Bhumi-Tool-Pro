@@ -175,102 +175,269 @@ browser.storage.local.get("targetValues", (data) => {
 
 
 
-  async function setupGrnManagement(grnTableBody) {
-    function updateGrnTable(grnData) {
-      grnTableBody.innerHTML = grnData.length === 0 ? 
-        '<tr><td colspan="4">No data available</td></tr>' : 
-        grnData.map((item, index) => `
-          <tr>
-            <td>${index + 1}</td>
-            <td>${item.grn}</td>
-            <td>${item.ror}</td>
-            <td><button class="remove-grn" data-index="${index}">Remove</button></td>
-          </tr>
-        `).join('');
+  async function setupGrnManagement() {
+    const grnTableBody = document.querySelector('#grn-table tbody');
+    const form = document.getElementById('grn-form');
+    const checkAllBtn = document.getElementById('check-all-btn');
+    const downloadAllBtn = document.getElementById('download-all-btn');
+    const clearAllBtn = document.getElementById('clear-all');
+    const statusLog = document.getElementById('status-log');
+    const statusText = document.getElementById('status-text');
+    const entryCount = document.getElementById('entry-count');
 
-      document.querySelectorAll('.remove-grn').forEach(button => {
-        button.addEventListener('click', async () => {
-          const index = parseInt(button.dataset.index);
-          try {
-            const response = await browser.runtime.sendMessage({ action: "deleteGrnRorEntry", index });
-            if (response.success) {
-              updateGrnTable(response.grnRorList);
-              showCustomAlert("GRN entry removed successfully");
-            } else {
-              showCustomAlert("Failed to remove GRN entry");
-             
-            }
-          } catch (error) {
-           
-            showCustomAlert("Error removing GRN entry");
-          }
-        });
-      });
-    }
-
-    
-    const loadGrnRorList = async () => {
-      try {
-        const response = await browser.runtime.sendMessage({ action: "getGrnRorList" });
-        if (response.success) 
-          updateGrnTable(response.grnRorList);
-      } catch (error) {
-       
+    const logStatus = (text) => {
+      if (statusLog) {
+        statusLog.style.display = 'block';
+        if (statusText) statusText.textContent = text;
       }
     };
 
-   
-    document.getElementById('grn-form')?.addEventListener('submit', async (e) => {
+    const hideStatus = () => {
+      if (statusLog) statusLog.style.display = 'none';
+      if (statusText) statusText.textContent = '';
+    };
+
+    const renderGRNTable = (list) => {
+      if (!grnTableBody) return;
+      const total = list?.length || 0;
+      if (entryCount) entryCount.textContent = `${total} entr${total === 1 ? 'y' : 'ies'}`;
+
+      if (!list || list.length === 0) {
+        grnTableBody.innerHTML = `<tr class="no-data"><td colspan="6">
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>No GRN entries yet</p>
+                <span>Add your first entry above</span>
+            </div>
+        </td></tr>`;
+        return;
+      }
+
+      grnTableBody.innerHTML = list.map((item, i) => `
+        <tr class="animate-in" style="animation-delay:${i * 0.03}s">
+            <td>${i + 1}</td>
+            <td><code>${item.grn}</code></td>
+            <td><code>${item.ror}</code></td>
+            <td id="status-${i}" style="text-align:center;"><span style="color:#64748b;">—</span></td>
+            <td id="dl-${i}" style="text-align:center;"><button class="btn-icon dl-btn" data-grn="${item.grn}" data-ror="${item.ror}" data-index="${i}" title="Download ROR" style="color:#10b981;"><i class="fas fa-download"></i></button></td>
+            <td style="text-align:center;">
+              <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn-icon check-btn" data-grn="${item.grn}" data-ror="${item.ror}" data-index="${i}" title="Check Status" style="color:#818cf8;"><i class="fas fa-search"></i></button>
+                <button class="btn-icon delete-btn" data-index="${i}" title="Delete"><i class="fas fa-trash-alt"></i></button>
+              </div>
+            </td>
+        </tr>`).join('');
+
+      grnTableBody.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const index = parseInt(btn.dataset.index, 10);
+          try {
+            const response = await browser.runtime.sendMessage({ action: 'deleteGrnRorEntry', index });
+            if (response?.success) {
+              renderGRNTable(response.grnRorList);
+              showCustomAlert('Entry deleted.');
+            } else {
+              showCustomAlert('Failed to delete entry');
+            }
+          } catch (error) {
+            showCustomAlert('Error deleting entry');
+          }
+        });
+      });
+
+      grnTableBody.querySelectorAll('.check-btn').forEach(btn => {
+        btn.addEventListener('click', () => checkSingleStatus(btn.dataset.grn, btn.dataset.ror, btn.dataset.index));
+      });
+
+      grnTableBody.querySelectorAll('.dl-btn').forEach(btn => {
+        btn.addEventListener('click', () => downloadSingleRor(btn.dataset.grn, btn.dataset.ror, btn.dataset.index));
+      });
+    };
+
+    const loadGrnRorList = async () => {
+      try {
+        const response = await browser.runtime.sendMessage({ action: 'getGrnRorList' });
+        if (response?.success) renderGRNTable(response.grnRorList || []);
+      } catch (error) {
+        console.error('Error loading GRN list:', error);
+      }
+    };
+
+    form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const grn = document.getElementById('grn-input')?.value.trim();
       const ror = document.getElementById('ror-input')?.value.trim();
-      
       if (!grn || !ror) {
         showCustomAlert('Please enter both GRN and ROR values');
         return;
       }
 
       try {
-        const response = await browser.runtime.sendMessage({
-          action: "saveGrnRorList",
-          grn,
-          ror
-        });
-        if (response.success) {
+        const response = await browser.runtime.sendMessage({ action: 'saveGrnRorList', grn, ror });
+        if (response?.success) {
           document.getElementById('grn-input').value = '';
           document.getElementById('ror-input').value = '';
-          updateGrnTable(response.grnRorList);
-          showCustomAlert("GRN/ROR entry saved successfully");
+          renderGRNTable(response.grnRorList || []);
+          showCustomAlert('Entry added!');
+          hideStatus();
         } else {
-          showCustomAlert("Failed to save GRN/ROR entry");
-        
+          showCustomAlert('Failed to save entry');
         }
       } catch (error) {
-       
-        showCustomAlert("Error saving GRN/ROR entry");
+        showCustomAlert('Error saving entry');
       }
     });
 
- 
-    document.getElementById('start-automation')?.addEventListener('click', async () => {
+    clearAllBtn?.addEventListener('click', async () => {
+      if (!confirm('Delete all GRN entries?')) return;
       try {
-        const response = await browser.runtime.sendMessage({ action: "getGrnRorList" });
-        if (response.success && response.grnRorList.length > 0) {
-          const automationResponse = await browser.runtime.sendMessage({ 
-            action: "startAutomation", 
-            grnData: response.grnRorList 
-          });
-          showCustomAlert(automationResponse.success ? 
-            "Automation started successfully" : 
-            `Failed to start automation: ${automationResponse.error || 'Unknown error'}`);
-        } else {
-          showCustomAlert('Please add GRN details first.');
-        }
+        await browser.storage.local.set({ grnRorList: [] });
+        renderGRNTable([]);
+        hideStatus();
+        showCustomAlert('All entries cleared.', 'info');
       } catch (error) {
-       
-        showCustomAlert("Error starting automation");
+        showCustomAlert('Error clearing entries');
       }
     });
+
+    checkAllBtn?.addEventListener('click', async () => checkAllStatus());
+    downloadAllBtn?.addEventListener('click', async () => downloadAllRor());
+
+    const checkSingleStatus = async (grn, ror, index) => {
+      const el = document.getElementById(`status-${index}`);
+      if (el) el.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-spinner fa-spin"></i></span>';
+      logStatus(`Checking ${ror}...`);
+
+      try {
+        const response = await browser.runtime.sendMessage({ action: 'checkGrnStatus', grn, ror });
+        if (response?.success) {
+          if (response.valid) {
+            if (el) el.innerHTML = '<span style="color:#10b981;font-weight:600;">✅ Ready</span>';
+          } else {
+            if (el) el.innerHTML = '<span style="color:#ef4444;">❌ Invalid</span>';
+          }
+        } else {
+          if (el) el.innerHTML = `<span style="color:#f59e0b;" title="${response?.error || ''}">⚠️ Error</span>`;
+          logStatus(`Error: ${response?.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        if (el) el.innerHTML = '<span style="color:#f59e0b;">⚠️ Error</span>';
+        logStatus('Error checking status');
+      }
+    };
+
+    const checkAllStatus = async () => {
+      if (checkAllBtn) {
+        checkAllBtn.disabled = true;
+        checkAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+      }
+      logStatus('Loading entries...');
+
+      try {
+        const response = await browser.runtime.sendMessage({ action: 'getGrnRorList' });
+        const list = response?.grnRorList || [];
+        if (!list.length) {
+          logStatus('No entries to check.');
+          return;
+        }
+
+        let validCount = 0;
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          logStatus(`Checking ${i + 1}/${list.length}: ${item.grn}...`);
+          const el = document.getElementById(`status-${i}`);
+          if (el) el.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-spinner fa-spin"></i></span>';
+
+          const response = await browser.runtime.sendMessage({ action: 'checkGrnStatus', grn: item.grn, ror: item.ror });
+          if (response?.success && response.valid) {
+            if (el) el.innerHTML = '<span style="color:#10b981;font-weight:600;">✅ Ready</span>';
+            validCount++;
+          } else if (response?.success && !response.valid) {
+            if (el) el.innerHTML = '<span style="color:#ef4444;">❌ Invalid</span>';
+          } else {
+            if (el) el.innerHTML = '<span style="color:#f59e0b;">⚠️ Error</span>';
+          }
+
+          if (i < list.length - 1) await new Promise(r => setTimeout(r, 1000));
+        }
+
+        logStatus(`Done! ${validCount}/${list.length} ready to download.`);
+      } catch (error) {
+        logStatus('Error checking entries');
+      } finally {
+        if (checkAllBtn) {
+          checkAllBtn.disabled = false;
+          checkAllBtn.innerHTML = '<i class="fas fa-search"></i> Check All Status';
+        }
+      }
+    };
+
+    const downloadSingleRor = async (grn, ror, index) => {
+      const el = document.getElementById(`dl-${index}`);
+      if (el) el.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-spinner fa-spin"></i></span>';
+      logStatus(`Downloading ROR for ${ror}...`);
+
+      try {
+        const response = await browser.runtime.sendMessage({ action: 'downloadRor', grn, ror });
+        if (response?.success) {
+          if (el) el.innerHTML = '<span style="color:#10b981;font-weight:600;">✅ Saved</span>';
+          logStatus(`✅ Downloaded: ${response.filename || ror}`);
+          showCustomAlert(`Downloaded ${response.filename || ror}`);
+        } else {
+          if (el) el.innerHTML = `<span style="color:#ef4444;" title="${response?.error || ''}">❌ Failed</span>`;
+          logStatus(`❌ Failed: ${response?.error || 'Unknown error'}`);
+          showCustomAlert(`Download failed: ${response?.error || 'Unknown'}`);
+        }
+      } catch (error) {
+        if (el) el.innerHTML = '<span style="color:#ef4444;">❌ Failed</span>';
+        logStatus('Error downloading ROR');
+        showCustomAlert('Error downloading ROR');
+      }
+    };
+
+    const downloadAllRor = async () => {
+      if (downloadAllBtn) {
+        downloadAllBtn.disabled = true;
+        downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+      }
+
+      try {
+        const response = await browser.runtime.sendMessage({ action: 'getGrnRorList' });
+        const list = response?.grnRorList || [];
+        if (!list.length) {
+          logStatus('No entries to download.');
+          return;
+        }
+
+        let downloaded = 0;
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          logStatus(`Downloading ${i + 1}/${list.length}: ${item.ror}...`);
+          const el = document.getElementById(`dl-${i}`);
+          if (el) el.innerHTML = '<span style="color:#f59e0b;"><i class="fas fa-spinner fa-spin"></i></span>';
+
+          const response = await browser.runtime.sendMessage({ action: 'downloadRor', grn: item.grn, ror: item.ror });
+          if (response?.success) {
+            if (el) el.innerHTML = '<span style="color:#10b981;font-weight:600;">✅</span>';
+            downloaded++;
+          } else {
+            if (el) el.innerHTML = '<span style="color:#ef4444;">❌</span>';
+          }
+
+          if (i < list.length - 1) await new Promise(r => setTimeout(r, 4000));
+        }
+
+        logStatus(`Done! ${downloaded}/${list.length} ROR files downloaded.`);
+        showCustomAlert(`Downloaded ${downloaded}/${list.length} files`);
+      } catch (error) {
+        logStatus('Error downloading entries');
+      } finally {
+        if (downloadAllBtn) {
+          downloadAllBtn.disabled = false;
+          downloadAllBtn.innerHTML = '<i class="fas fa-download"></i> Download All ROR';
+        }
+      }
+    };
 
     await loadGrnRorList();
   }
