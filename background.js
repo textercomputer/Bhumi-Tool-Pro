@@ -155,6 +155,41 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
       .catch(error => console.error("Error checking activation state:", error));
   }
+  else if (message.action === 'solveCaptcha') {
+        (async () => {
+            try {
+                let base64 = message.imageData;
+                if (base64.includes(',')) {
+                    base64 = base64.split(',')[1];
+                }
+
+                const response = await fetch('https://textercompter.store/banglarbhumicaptcha/api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': 'txtr_05b558a2386bff12d1cac4c3009b2472179ce74016040cfa',
+                    },
+                    body: JSON.stringify({ captcha: base64 }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    safeSendResponse({ success: true, text: data.text });
+                } else {
+                    safeSendResponse({ success: false, error: data.error || 'API Error' });
+                }
+            } catch (e) {
+                safeSendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.action === 'getStatus') {
+        safeSendResponse({ ready: true, loading: false });
+        return true;
+    }
 });
 
 function t(action) {

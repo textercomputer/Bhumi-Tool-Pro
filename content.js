@@ -97,36 +97,72 @@ const uiAdjustments = {
 
 const loginAutomation = {
     async automateLogin() {
-        const { username, password } = await AutomationManager.getFromStorage(['username', 'password']);
-        if (!username || !password) {
-            console.log("Credentials not found in storage");
-            return;
-        }
-
-        const beforeLoginDiv = document.getElementById("beforeLoginDiv");
-        const afterLoginDiv = document.getElementById("afterLoginDiv");
-
-        if (beforeLoginDiv?.style.display !== "none") {
-            const signInButton = document.getElementById("signIn");
-            if (signInButton) signInButton.click();
-
-            await this.waitForElement("username", 5000);
-            const usernameField = document.getElementById("username");
-            const passwordField = document.getElementById("password");
-
-            if (usernameField && passwordField) {
-                usernameField.value = username;
-                passwordField.value = password;
-                setTimeout(() => {
-                    const loginSubmit = document.getElementById("");
-                    if (loginSubmit) {
-                        loginSubmit.click();
-                        this.verifyLogin(5);
-                    }
-                }, 1500);
+        try {
+            const { username, password } = await AutomationManager.getFromStorage(['username', 'password']);
+            if (!username || !password) {
+                console.log('[BhumiToolPro] No saved credentials, skipping auto-login');
+                return;
             }
-        } else if (afterLoginDiv?.style.display !== "none") {
-          //  console.log("Already logged in");
+
+            const beforeLoginDiv = document.getElementById("beforeLoginDiv");
+            if (beforeLoginDiv?.style.display === "none") {
+                console.log('[BhumiToolPro] Already logged in');
+                return;
+            }
+
+            // Click sign-in to reveal the login form
+            const signInButton = document.getElementById("signIn");
+            if (signInButton) {
+                signInButton.click();
+                console.log('[BhumiToolPro] Clicked signIn, waiting for login form...');
+            }
+
+            // Wait for the username field to appear (15s — page can be slow)
+            const usernameField = await this.waitForElement("username", 15000);
+            if (!usernameField) {
+                console.warn('[BhumiToolPro] Username field not found after 15s, aborting auto-login');
+                return;
+            }
+
+            const passwordField = document.getElementById("password");
+            if (!passwordField) {
+                console.warn('[BhumiToolPro] Password field not found, aborting');
+                return;
+            }
+
+            // Fill credentials
+            usernameField.value = username;
+            usernameField.dispatchEvent(new Event('input', { bubbles: true }));
+            usernameField.dispatchEvent(new Event('change', { bubbles: true }));
+
+            passwordField.value = password;
+            passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+            passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+
+            console.log('[BhumiToolPro] Credentials filled, solving CAPTCHA...');
+
+            // Trigger CAPTCHA solving
+            this.solveLoginCaptcha();
+
+            console.log('[BhumiToolPro] Credentials filled, waiting for CAPTCHA to be solved...');
+
+            // Wait for AI CAPTCHA solver to fill the captcha input
+            const captchaResult = await this.waitForCaptchaSolved(30000);
+            if (!captchaResult) {
+                console.warn('[BhumiToolPro] CAPTCHA not solved in time');
+                return;
+            }
+
+            console.log('[BhumiToolPro] CAPTCHA solved, clicking OTPGenSubmit...');
+            const otpSubmit = document.getElementById("OTPGenSubmit");
+            if (otpSubmit) {
+                otpSubmit.click();
+                console.log('[BhumiToolPro] OTPGenSubmit clicked');
+            } else {
+                console.error('[BhumiToolPro] OTPGenSubmit button not found');
+            }
+        } catch (error) {
+            console.error('[BhumiToolPro] Login automation error:', error.message);
         }
     },
 
@@ -138,6 +174,48 @@ const loginAutomation = {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         throw new Error(`Element ${elementId} not found`);
+    },
+
+    async waitForCaptchaSolved(timeout) {
+        const start = Date.now();
+        while (Date.now() - start < timeout) {
+            const captchaInput = document.getElementById('txtCaptcha');
+            if (captchaInput && captchaInput.value.trim()) {
+                return true;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        return false;
+    },
+
+    async solveLoginCaptcha() {
+        const captchaImg = document.getElementById('captchaImage');
+        if (!captchaImg) {
+            console.warn('[BhumiToolPro] CAPTCHA image not found');
+            return;
+        }
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = captchaImg.naturalWidth || captchaImg.width;
+        canvas.height = captchaImg.naturalHeight || captchaImg.height;
+        ctx.drawImage(captchaImg, 0, 0);
+        const imageData = canvas.toDataURL('image/png');
+        try {
+            const response = await browser.runtime.sendMessage({ action: 'solveCaptcha', imageData });
+            if (response.success) {
+                const captchaInput = document.getElementById('txtCaptcha');
+                if (captchaInput) {
+                    captchaInput.value = response.text;
+                    captchaInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    captchaInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    console.log('[BhumiToolPro] CAPTCHA solved and filled');
+                }
+            } else {
+                console.error('[BhumiToolPro] CAPTCHA solve failed:', response.error);
+            }
+        } catch (e) {
+            console.error('[BhumiToolPro] CAPTCHA solve error:', e);
+        }
     },
 
     verifyLogin(retries) {
